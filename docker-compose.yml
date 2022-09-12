@@ -1,0 +1,80 @@
+version: '3.8'
+
+######### Services ###################################
+
+services:
+  # Server container
+  nginx:
+    image: nginx:1.18.0-alpine
+    restart: unless-stopped
+    volumes:
+      - ./api:/var/www/api
+      - ./docker/nginx/logs:/var/log/nginx
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+    ports:
+      - "80:80"
+    depends_on:
+      - php
+      - vue
+
+  # nuxt container
+  vue:
+    build:
+      context: vue
+      dockerfile: Dockerfile
+      args:
+        USER_ID: $USER_ID
+        GROUP_ID: $GROUP_ID
+    volumes:
+      - ./vue:/vue
+    ports:
+      - "8080:8080"
+    tty: true
+
+  # PHP FastCGI Process Manager container
+  php:
+    build:
+      context: docker/php
+      dockerfile: Dockerfile
+      args:
+        USER_ID: $USER_ID
+        GROUP_ID: $GROUP_ID
+    volumes:
+      - ./api:/var/www/api
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    environment:
+      # If you down want to use xDebug, set remote_enable=0
+      XDEBUG_CONFIG: "remote_enable=1"
+      PHP_IDE_CONFIG: "serverName=Docker"
+    depends_on:
+      - mysql
+      - redis
+
+  ### MySQL Database ##########################
+  mysql:
+    image: mysql/mysql-server
+    volumes:
+      - database:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_USER=app
+      - MYSQL_PASSWORD=app
+      - MYSQL_DATABASE=app
+    ports:
+      - "33061:3306"
+
+  # Redis container
+  redis:
+    image: redis:6.2
+    volumes:
+      - redis:/data
+    ports:
+      - "63791:6379"
+
+######### Volumes ###################################
+
+volumes:
+  database:
+    driver: local
+  redis:
+    driver: local
